@@ -42,6 +42,8 @@
   <ItemGroup>
     <Compile Include="Parser.cs" />
     <Compile Include="Program.cs" />
+    <Compile Include="RegularExpression.cs" />
+    <Compile Include="Set.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="App.config" />
