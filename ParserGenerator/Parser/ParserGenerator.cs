@@ -264,7 +264,7 @@
                     }
                     Console.Write("\\n");
                 }
-                Console.WriteLine("\", Shape=\"Rectangle\"];");
+                Console.WriteLine("\"];");
                 //Console.WriteLine("-----------------------------------");
             }
             foreach (var transition in this.canonicalSetTransitions)
