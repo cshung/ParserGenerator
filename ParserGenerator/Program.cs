@@ -1,11 +1,8 @@
-﻿//
-// Practicing subset construction algorithm for regular expression
+﻿// Practicing subset construction algorithm for regular expression
 // Practicing the LR(1) and SLR(1) Parsing Algorithm
-//
+// TODO: Top down recursive parser generation
 // TODO: Separation of tool set and runtime
-// TODO: Better error reporting in conflicts
 // TODO: Abstract subset construction algorithm implementation
-// 
 namespace Andrew.ParserGenerator
 {
     using System;
@@ -18,7 +15,8 @@ namespace Andrew.ParserGenerator
         {
             LexicalIdentifierSample();
             ExpressionGrammarSample();
-            RegularExpressionExample();
+            RegularExpressionSample();
+            OperatorSample();
         }
 
         private static void LexicalIdentifierSample()
@@ -53,8 +51,8 @@ namespace Andrew.ParserGenerator
             {
                 Specification = new List<Tuple<RegularExpression, Action<string>>>
                 {
-                    Tuple.Create<RegularExpression, Action<string>>(identifier, (s) => {Console.WriteLine(s);}),
-                    Tuple.Create<RegularExpression, Action<string>>(whitespace, (s) => {} ), /* Ignore whitespaces */
+                    Tuple.Create<RegularExpression, Action<string>>(identifier, (s) => { Console.WriteLine(s); }),
+                    Tuple.Create<RegularExpression, Action<string>>(whitespace, (s) => { } ), /* Ignore whitespaces */
                     
                 }
             };
@@ -106,7 +104,7 @@ namespace Andrew.ParserGenerator
             Console.WriteLine(result);
         }
 
-        private static void RegularExpressionExample()
+        private static void RegularExpressionSample()
         {
             Terminal c = new Terminal { DisplayName = "char" };
             Terminal pipe = new Terminal { DisplayName = "|" };
@@ -170,6 +168,82 @@ namespace Andrew.ParserGenerator
             CompiledRegularExpression compiled = result.Compile();
             Console.WriteLine(compiled.Match("Hello"));
             Console.WriteLine(compiled.Match("World"));
+        }
+
+        private static void OperatorSample()
+        {
+            // Step 1: Create a grammar with associativity issue and try to solve it
+            Terminal num = new Terminal { DisplayName = "num" };
+            Terminal minus = new Terminal { DisplayName = "-" };
+            NonTerminal expr = new NonTerminal { DisplayName = "Expr" };
+            Grammar grammar = new Grammar
+            {
+                Goal = expr,
+                Productions = new List<Production>
+                {
+                    new Production { From = expr, To = new List<Symbol> { num }, SemanticAction = (args) => args[0] },
+                    new Production { From = expr, To = new List<Symbol> { expr, minus, expr }, SemanticAction = (args) => ((int)args[0]) - ((int)args[2]) } 
+                }
+            };
+            var parser = new ParserGenerator(grammar, ParserMode.LR, new OperatorConflictResolver { Left = { minus } }).Generate();
+            var answer = parser.Parse(new List<Token>
+            {
+                new Token { Symbol = num, SemanticValue = 7 },
+                new Token { Symbol = minus, SemanticValue = null },
+                new Token { Symbol = num, SemanticValue = 3 },
+                new Token { Symbol = minus, SemanticValue = null },
+                new Token { Symbol = num, SemanticValue = 2 },
+            });
+            Console.WriteLine(answer);
+        }
+
+        // TODO: Right associative operator
+        // TODO: Operator Precedence
+        class OperatorConflictResolver : IConflictResolver
+        {
+            public OperatorConflictResolver()
+            {
+                this.Left = new HashSet<Terminal>();
+            }
+
+            public HashSet<Terminal> Left { get; private set; }
+
+            public bool? ShouldFirstOverrideSecond(ParserItem first, ParserItem second)
+            {
+                bool isFirstReduce = first.ExpectedSymbols.Count() == 0;
+                bool isSecondReduce = second.ExpectedSymbols.Count() == 0;
+                if (isFirstReduce && !isSecondReduce)
+                {
+                    return PreferShiftOrReduce(second, first);
+                }
+                else if (!isFirstReduce && isSecondReduce)
+                {
+                    return PreferShiftOrReduce(first, second);
+                }
+                else
+                {
+                    // Cannot handle reduce/reduce conflict
+                    return null;
+                }
+            }
+
+            private bool? PreferShiftOrReduce(ParserItem first, ParserItem second)
+            {
+                // Prefer (T op T ., op) to (T . op T, op) for left associative operator
+                foreach (var op in this.Left)
+                {
+                    // TODO: Make pattern matching more declarative
+                    bool firstMatch = first.SeenSymbols.Count() == 1 && first.ExpectedSymbols.Count() == 2 && first.ExpectedSymbols[0] == op && first.ExpectedSymbols[1] == first.SeenSymbols[0];
+                    bool secondMatch = second.SeenSymbols.Count() == 3 && second.SeenSymbols[1] == op && second.SeenSymbols[0] == second.SeenSymbols[2];
+                    if (firstMatch && secondMatch)
+                    {
+                        return false;
+                    }
+                }
+
+                // Other case you don't know
+                return null;
+            }
         }
     }
 }

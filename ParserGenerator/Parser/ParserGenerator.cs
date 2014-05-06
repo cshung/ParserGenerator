@@ -4,10 +4,11 @@
     using System.Collections.Generic;
     using System.Linq;
 
-    class ParserGenerator
+    internal class ParserGenerator
     {
         private Grammar grammar;
         private ParserMode parserMode;
+        private IConflictResolver conflictResolver;
         private NonTerminal goal;
         private List<Terminal> terminals;
         private List<NonTerminal> nonTerminals;
@@ -18,14 +19,16 @@
         private List<CanonicalSetTransition> canonicalSetTransitions;
         private Dictionary<int, Dictionary<Terminal, ParseAction>> actionTable;
         private Dictionary<int, Dictionary<NonTerminal, int>> gotoTable;
+        private Dictionary<int, Dictionary<Terminal, Item>> actionItemTable;
 
-        public ParserGenerator(Grammar grammar, ParserMode parserMode)
+        internal ParserGenerator(Grammar grammar, ParserMode parserMode, IConflictResolver conflictResolver = null)
         {
             this.grammar = grammar;
             this.parserMode = parserMode;
+            this.conflictResolver = conflictResolver;
         }
 
-        public Parser Generate()
+        internal Parser Generate()
         {
             bool dumpFirstSet = false;
             bool dumpFollowSet = false;
@@ -115,6 +118,7 @@
         private void BuildTables()
         {
             this.actionTable = new Dictionary<int, Dictionary<Terminal, ParseAction>>();
+            this.actionItemTable = new Dictionary<int, Dictionary<Terminal, Item>>();
             this.gotoTable = new Dictionary<int, Dictionary<NonTerminal, int>>();
             foreach (var canonicalSet in this.canonicalSets)
             {
@@ -136,18 +140,44 @@
                                 actionMap = new Dictionary<Terminal, ParseAction>();
                                 actionTable.Add(thisCanonicalSetIndex, actionMap);
                             }
+                            Dictionary<Terminal, Item> actionItemMap;
+                            if (!actionItemTable.TryGetValue(thisCanonicalSetIndex, out actionItemMap))
+                            {
+                                actionItemMap = new Dictionary<Terminal, Item>();
+                                actionItemTable.Add(thisCanonicalSetIndex, actionItemMap);
+                            }
                             ParseAction currentAction;
+                            ParseAction actionToAdd = new ShiftAction { ToState = nextCanonicalSetIndex };
                             if (actionMap.TryGetValue(shiftingTerminal, out currentAction))
                             {
-                                // TODO: More information
                                 if (currentAction is ReduceAction)
                                 {
-                                    Console.Error.WriteLine("Shift/Reduce conflict");
+                                    ParserItem item1 = ToParserItem(item);
+                                    ParserItem item2 = ToParserItem(actionItemMap[shiftingTerminal]);
+                                    bool? which = (this.conflictResolver == null) ? null : this.conflictResolver.ShouldFirstOverrideSecond(item1, item2);
+                                    if (which == null)
+                                    {
+                                        Console.Error.WriteLine("Shift/Reduce conflict");
+                                        Console.Error.WriteLine("Shift  : " + item1.ToString());
+                                        Console.Error.WriteLine("Reduce : " + item2.ToString());
+                                    }
+                                    else if (which.Value)
+                                    {
+                                        actionMap.Remove(shiftingTerminal);
+                                        actionItemMap.Remove(shiftingTerminal);
+                                        actionMap.Add(shiftingTerminal, actionToAdd);
+                                        actionItemMap.Add(shiftingTerminal, item);
+                                    }
+                                    else
+                                    {
+                                        // the existing item wins - no-op
+                                    }
                                 }
                             }
                             else
                             {
-                                actionMap.Add(shiftingTerminal, new ShiftAction { ToState = nextCanonicalSetIndex });
+                                actionMap.Add(shiftingTerminal, actionToAdd);
+                                actionItemMap.Add(shiftingTerminal, item);
                             }
                         }
                     }
@@ -172,54 +202,69 @@
                                 actionMap = new Dictionary<Terminal, ParseAction>();
                                 actionTable.Add(thisCanonicalSetIndex, actionMap);
                             }
+                            Dictionary<Terminal, Item> actionItemMap;
+                            if (!actionItemTable.TryGetValue(thisCanonicalSetIndex, out actionItemMap))
+                            {
+                                actionItemMap = new Dictionary<Terminal, Item>();
+                                actionItemTable.Add(thisCanonicalSetIndex, actionItemMap);
+                            }
                             ParseAction currentAction;
                             actionMap.TryGetValue(reduceSymbol, out currentAction);
 
+                            ParseAction actionToAdd = null;
                             if (item.Production == 0)
                             {
-                                if (currentAction != null)
+                                actionToAdd = new AcceptAction();
+                            }
+                            else
+                            {
+                                // The index is -1 to account for the fact we have an extra production
+                                actionToAdd = new ReduceAction { Production = item.Production - 1 };
+                            }
+
+                            if (currentAction != null)
+                            {
+                                ParserItem item1 = ToParserItem(item);
+                                ParserItem item2 = ToParserItem(actionItemMap[reduceSymbol]);
+
+                                bool? which = (this.conflictResolver == null) ? null : this.conflictResolver.ShouldFirstOverrideSecond(item1, item2);
+                                if (which == null)
                                 {
                                     if (currentAction is ShiftAction)
                                     {
                                         Console.Error.WriteLine("Shift/Reduce conflict");
+                                        Console.Error.WriteLine("Shift  : " + item2.ToString());
+                                        Console.Error.WriteLine("Reduce : " + item1.ToString());
                                     }
                                     else if (currentAction is ReduceAction)
                                     {
                                         Console.Error.WriteLine("Reduce/Reduce conflict");
+                                        Console.Error.WriteLine("Reduce : " + item1.ToString());
+                                        Console.Error.WriteLine("Reduce : " + item2.ToString());
                                     }
+                                }
+                                else if (which.Value)
+                                {
+                                    actionMap.Remove(reduceSymbol);
+                                    actionItemMap.Remove(reduceSymbol);
+                                    actionMap.Add(reduceSymbol, actionToAdd);
+                                    actionItemMap.Add(reduceSymbol, item);
                                 }
                                 else
                                 {
-                                    actionMap.Add(reduceSymbol, new AcceptAction());
+                                    // the existing item wins - no-op
                                 }
                             }
                             else
                             {
-                                if (currentAction != null)
-                                {
-                                    if (currentAction is ShiftAction)
-                                    {
-                                        Console.Error.WriteLine("Shift/Reduce conflict");
-                                    }
-                                    else if (currentAction is ReduceAction)
-                                    {
-                                        Console.Error.WriteLine("Reduce/Reduce conflict");
-                                    }
-                                    else if (currentAction is AcceptAction)
-                                    {
-                                        Console.Error.WriteLine("Accept/Reduce conflict");
-                                    }
-                                }
-                                else
-                                {
-                                    // The index is -1 to account for the fact we have an extra production
-                                    actionMap.Add(reduceSymbol, new ReduceAction { Production = item.Production - 1 });
-                                }
+                                actionMap.Add(reduceSymbol, actionToAdd);
+                                actionItemMap.Add(reduceSymbol, item);
                             }
                         }
                     }
                 }
             }
+
             foreach (var transition in this.canonicalSetTransitions)
             {
                 if (transition.Symbol < 0)
@@ -246,16 +291,10 @@
             int i = 0;
             foreach (var canonicalSet in canonicalSets)
             {
-                //Console.WriteLine("-----------------------------------");
                 Console.Write("CanonicalSet{0} [label=\"", i++);
                 foreach (var item in canonicalSet)
                 {
-                    var itemProduction = this.rewrittenGrammar[item.Production];
-                    Console.Write(ToSymbol(itemProduction.From).DisplayName +
-                        " -> " +
-                        string.Join(" ", itemProduction.To.Take(item.StackTopPosition).Select(t => ToSymbol(t).DisplayName)) +
-                        " . " +
-                        string.Join(" ", itemProduction.To.Skip(item.StackTopPosition).Select(t => ToSymbol(t).DisplayName)));
+                    Console.Write(ToParserItem(item).ToString());
                     if (parserMode == ParserMode.LR)
                     {
                         Console.Write(" , " +
@@ -265,7 +304,6 @@
                     Console.Write("\\n");
                 }
                 Console.WriteLine("\"];");
-                //Console.WriteLine("-----------------------------------");
             }
             foreach (var transition in this.canonicalSetTransitions)
             {
@@ -387,6 +425,18 @@
                 }
             }
             return Closure(moved);
+        }
+
+        private ParserItem ToParserItem(Item item)
+        {
+            var itemProduction = this.rewrittenGrammar[item.Production];
+            return new ParserItem
+            {
+                From = ToSymbol(itemProduction.From),
+                SeenSymbols = itemProduction.To.Take(item.StackTopPosition).Select(t => ToSymbol(t)).ToList(),
+                ExpectedSymbols = itemProduction.To.Skip(item.StackTopPosition).Select(t => ToSymbol(t)).ToList(),
+                Lookahead = ToSymbol(item.Lookahead),
+            };
         }
 
         class Item
