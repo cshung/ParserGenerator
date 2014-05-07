@@ -6,25 +6,34 @@
 
     public class LexicalAnalyzer
     {
-        public List<Tuple<RegularExpression, Action<string>>> Specification { get; set; }
+        public List<Tuple<RegularExpression, Terminal, Action<Token>>> Specification { get; set; }
 
-        public void Analyze(string s)
+        public IEnumerable<Token> Analyze(string s)
         {
+            List<Tuple<CompiledRegularExpression, Terminal, Action<Token>>> compiledSpecification = this.Specification.Select(spec => Tuple.Create(spec.Item1.Compile(), spec.Item2, spec.Item3)).ToList();
             while (s.Length > 0)
-            {
-                List<Tuple<CompiledRegularExpression, Action<string>>> compiledSpecification = this.Specification.Select(spec => Tuple.Create(spec.Item1.Compile(), spec.Item2)).ToList();
-                List<Tuple<string, Action<string>>> matches = compiledSpecification.Select(c => Tuple.Create(c.Item1.LongestMatch(s), c.Item2)).Where(m => m.Item1 != null).ToList();
+            {   
+                List<Tuple<string, Terminal, Action<Token>>> matches = compiledSpecification.Select(c => Tuple.Create(c.Item1.LongestMatch(s), c.Item2, c.Item3)).Where(m => m.Item1 != null).ToList();
                 if (matches.Count != 0)
                 {
                     int maximalLength = matches.Select(m => m.Item1.Length).Max();
-                    Tuple<string, Action<string>> match = matches.First(m => m.Item1.Length == maximalLength);
-                    match.Item2(match.Item1);
+                    var match = matches.First(m => m.Item1.Length == maximalLength);
+                    if (match.Item2 != null)
+                    {
+                        Token token = new Token { Symbol = match.Item2, SemanticValue = match.Item1 };
+                        if (match.Item3 != null)
+                        {
+                            match.Item3(token);
+                        }
+
+                        yield return token;
+                    }
                     s = s.Substring(maximalLength);
                 }
                 else
                 {
-                    Console.WriteLine("Input matches no rule");
-                    break;
+                    Console.Error.WriteLine("Input matches no rule");
+                    yield break;
                 }
             }
         }

@@ -15,8 +15,124 @@ namespace Andrew.ParserGenerator
         {
             LexicalIdentifierSample();
             ExpressionGrammarSample();
-            RegularExpressionSample();
+            ParseRegularExpression();
             OperatorSample();
+            GrammarSample();
+        }
+
+        private class GrammarParser
+        {
+            private LexicalAnalyzer lexer;
+            private Parser parser;
+
+            public GrammarParser()
+            {
+                Terminal nonTerminalIdentifier = new Terminal { DisplayName = "NT" };
+                Terminal terminalIdentifier = new Terminal { DisplayName = "T" };
+                Terminal arrow = new Terminal { DisplayName = ">" };
+                Terminal endline = new Terminal { DisplayName = "endl" };
+
+                NonTerminal grammar = new NonTerminal { DisplayName = "Grammar" };
+                NonTerminal completeSymbolList = new NonTerminal { DisplayName = "CompleteSymbolList" };
+                NonTerminal symbolList = new NonTerminal { DisplayName = "SymbolList" };
+                NonTerminal symbol = new NonTerminal { DisplayName = "Symbol" };
+                NonTerminal rules = new NonTerminal { DisplayName = "Rules" };
+                NonTerminal rule = new NonTerminal { DisplayName = "Rule" };
+                NonTerminal ruleElementList = new NonTerminal { DisplayName = "RuleElementList" };
+                NonTerminal ruleElement = new NonTerminal { DisplayName = "RuleElement" };
+
+                RegularExpressionParser regularExpressionParser = new RegularExpressionParser();
+
+                this.lexer = new LexicalAnalyzer
+                {
+                    Specification = new List<Tuple<RegularExpression, Terminal, Action<Token>>>
+                    {
+                        Tuple.Create<RegularExpression, Terminal, Action<Token>>(regularExpressionParser.Parse("[A-Z](_|[a-z]|[A-Z])*"), nonTerminalIdentifier, null),
+                        Tuple.Create<RegularExpression, Terminal, Action<Token>>(regularExpressionParser.Parse("[a-z](_|[a-z]|[A-Z])*"), terminalIdentifier, null),
+                        Tuple.Create<RegularExpression, Terminal, Action<Token>>(regularExpressionParser.Parse(">"), arrow, null),
+                        Tuple.Create<RegularExpression, Terminal, Action<Token>>(regularExpressionParser.Parse(" "), null, null),
+                        Tuple.Create<RegularExpression, Terminal, Action<Token>>(
+                        new ConcatenateRegularExpression {
+                            Left = new CharSetRegularExpression { CharSet = new ExplicitCharacterClass { Elements = { '\r' } } },
+                            Right = new CharSetRegularExpression { CharSet = new ExplicitCharacterClass { Elements = { '\n' } } }
+                        }
+                        , endline, null),
+                    }
+                };
+
+                Dictionary<string, Symbol> table = new Dictionary<string, Symbol>();
+
+                Grammar grammarGrammar = new Grammar
+                {
+                    Goal = grammar,
+                    Productions = new List<Production>
+                    {
+                        new Production { From = grammar, To = new List<Symbol>  { completeSymbolList, endline, nonTerminalIdentifier, endline, rules }, SemanticAction = args => new Grammar { Goal = ((NonTerminal)table[(string)args[2]]), Productions = ((IEnumerable<Production>)args[4]).ToList() } },
+                        new Production { From = completeSymbolList, To = new List<Symbol> { symbolList }, SemanticAction = (args) => { table.Clear(); foreach (Symbol s in (IEnumerable<Symbol>)args[0]) { table.Add(s.DisplayName, s); } return null; }},
+                        new Production { From = symbolList, To = new List<Symbol>  { symbol }, SemanticAction = args => new List<Symbol> { (Symbol)args[0] } },
+                        new Production { From = symbolList, To = new List<Symbol>  { symbol, symbolList }, SemanticAction = args => new List<Symbol> { (Symbol)args[0] }.Concat((IEnumerable<Symbol>)args[1]) },
+                        new Production { From = symbol, To = new List<Symbol> { nonTerminalIdentifier, endline }, SemanticAction = (args) => new NonTerminal { DisplayName = (string) args[0] } },
+                        new Production { From = symbol, To = new List<Symbol> { terminalIdentifier, endline }, SemanticAction = (args) => new Terminal { DisplayName = (string) args[0] } },
+                        new Production { From = rules, To = new List<Symbol> { rule }, SemanticAction = (args) => new List<Production> { (Production)args[0] } },
+                        new Production { From = rules, To = new List<Symbol> { rule, rules }, SemanticAction = (args) => (new List<Production> { (Production)args[0] }).Concat((IEnumerable<Production>)args[1])},
+                        new Production { From = rule,  To = new List<Symbol> { nonTerminalIdentifier, arrow, ruleElementList, endline }, SemanticAction = args => new Production { From = ((NonTerminal)table[(string)args[0]]), To = ((IEnumerable<Symbol>)args[2]).ToList() }},
+                        new Production { From = ruleElementList, To = new List<Symbol> { ruleElement }, SemanticAction = (args) => new List<Symbol> { (Symbol)args[0] } },
+                        new Production { From = ruleElementList, To = new List<Symbol> { ruleElement, ruleElementList }, SemanticAction = (args) => (new List<Symbol> { (Symbol)args[0] }).Concat((IEnumerable<Symbol>)args[1]) },
+                        new Production { From = ruleElement, To = new List<Symbol> { nonTerminalIdentifier }, SemanticAction = (args) => table[(string)args[0]] },
+                        new Production { From = ruleElement, To = new List<Symbol> { terminalIdentifier }, SemanticAction = (args) => table[(string)args[0]] },
+                    }
+                };
+                
+                this.parser = new ParserGenerator(grammarGrammar, ParserMode.SLR).Generate();
+            }
+
+            public Grammar Parse(string grammarText)
+            {
+                return (Grammar)this.parser.Parse(lexer.Analyze(grammarText));
+            }
+        }
+
+        private static void GrammarSample()
+        {
+            string grammarText = @"
+close_brace
+close_paren
+close_square_bracket
+dotdotdot
+equal_sign
+open_brace
+open_paren
+open_square_bracket
+Param_desc
+Param_doc
+param_name
+Param_name_value
+param_tag
+param_type
+Param_type_desc
+param_value
+pipe
+Pipe_param_type_list
+star
+
+Param_doc
+Param_doc            > param_tag Param_name_value
+Param_doc            > param_tag open_brace Param_type_desc close_brace Param_name_value Param_desc 
+Param_type_desc      > param_type
+Param_type_desc      > param_type equal_sign
+Param_type_desc      > open_paren param_type Pipe_param_type_list close_paren
+Pipe_param_type_list > pipe param_type 
+Pipe_param_type_list > pipe param_type Pipe_param_type_list
+Param_type_desc      > star
+Param_type_desc      > dotdotdot param_type
+Param_name_value     > param_name
+Param_name_value     > open_square_bracket param_name close_square_bracket
+Param_name_value     > open_square_bracket param_name equal_sign param_value close_square_bracket
+";
+            grammarText = grammarText.Trim();
+            grammarText = grammarText + "\r\n";
+            Grammar grammar = new GrammarParser().Parse(grammarText);
+            Parser parser = new ParserGenerator(grammar, ParserMode.SLR).Generate();
         }
 
         private static void LexicalIdentifierSample()
@@ -47,16 +163,21 @@ namespace Andrew.ParserGenerator
                 },
             };
 
+            Terminal id = new Terminal { DisplayName = "Ident" };
+
             LexicalAnalyzer lexicalAnalyzer = new LexicalAnalyzer
             {
-                Specification = new List<Tuple<RegularExpression, Action<string>>>
+                Specification = new List<Tuple<RegularExpression, Terminal, Action<Token>>>
                 {
-                    Tuple.Create<RegularExpression, Action<string>>(identifier, (s) => { Console.WriteLine(s); }),
-                    Tuple.Create<RegularExpression, Action<string>>(whitespace, (s) => { } ), /* Ignore whitespaces */
-                    
+                    Tuple.Create<RegularExpression, Terminal, Action<Token>>(identifier, id, null),
+                    Tuple.Create<RegularExpression, Terminal, Action<Token>>(whitespace, null, null)
                 }
             };
-            lexicalAnalyzer.Analyze("Hello World error");
+
+            foreach (var token in lexicalAnalyzer.Analyze("Hello World error"))
+            {
+                Console.WriteLine(token.SemanticValue);
+            }
         }
 
         private static void ExpressionGrammarSample()
@@ -104,7 +225,7 @@ namespace Andrew.ParserGenerator
             Console.WriteLine(result);
         }
 
-        private static void RegularExpressionSample()
+        private class RegularExpressionParser
         {
             Terminal c = new Terminal { DisplayName = "char" };
             Terminal pipe = new Terminal { DisplayName = "|" };
@@ -121,11 +242,14 @@ namespace Andrew.ParserGenerator
             NonTerminal rec = new NonTerminal { DisplayName = "REc" };
             NonTerminal cs = new NonTerminal { DisplayName = "CS" };
             NonTerminal csu = new NonTerminal { DisplayName = "CSu" };
+            Parser parser;
 
-            Grammar grammar = new Grammar
+            public RegularExpressionParser()
             {
-                Goal = re,
-                Productions = new List<Production>
+                Grammar grammar = new Grammar
+                {
+                    Goal = re,
+                    Productions = new List<Production>
                 {
                     new Production { From = re, To = new List<Symbol> { reu }, SemanticAction = (a) => a[0] },
                     new Production { From = re, To = new List<Symbol> { reu, pipe, re }, SemanticAction = (a) => new UnionRegularExpression { Left = (RegularExpression)a[0], Right = (RegularExpression)a[2] }},
@@ -141,29 +265,38 @@ namespace Andrew.ParserGenerator
                     new Production { From = csu, To = new List<Symbol> { c, hyphen, c }, SemanticAction = (a) => new RangeCharacterClass { From = (char)a[0], To = (char)a[2] } },
                     new Production { From = csu, To = new List<Symbol> { c }, SemanticAction = (a) => new ExplicitCharacterClass { Elements = { (char)a[0] } } },
                 }
-            };
-            Parser parser = new ParserGenerator(grammar, ParserMode.SLR).Generate();
+                };
+                this.parser = new ParserGenerator(grammar, ParserMode.SLR).Generate();
+            }
 
+            public RegularExpression Parse(string s)
+            {
+                // A very simple scanner (which do not handle escape)
+                IEnumerable<Token> tokens = s.Select(d =>
+                {
+                    switch (d)
+                    {
+                        case '(': return new Token { Symbol = lp };
+                        case ')': return new Token { Symbol = rp };
+                        case '*': return new Token { Symbol = star };
+                        case '|': return new Token { Symbol = pipe };
+                        case '[': return new Token { Symbol = lb };
+                        case ']': return new Token { Symbol = rb };
+                        case '-': return new Token { Symbol = hyphen };
+                        case '^': return new Token { Symbol = caret };
+                        default: return new Token { Symbol = c, SemanticValue = d };
+                    }
+                });
+
+                return (RegularExpression)parser.Parse(tokens);
+            }
+        }
+
+        private static void ParseRegularExpression()
+        {
             string s = "Hel*o|W(or)[^0-9][b-d]";
 
-            // A very simple scanner (which do not handle escape)
-            IEnumerable<Token> tokens = s.Select(d =>
-            {
-                switch (d)
-                {
-                    case '(': return new Token { Symbol = lp };
-                    case ')': return new Token { Symbol = rp };
-                    case '*': return new Token { Symbol = star };
-                    case '|': return new Token { Symbol = pipe };
-                    case '[': return new Token { Symbol = lb };
-                    case ']': return new Token { Symbol = rb };
-                    case '-': return new Token { Symbol = hyphen };
-                    case '^': return new Token { Symbol = caret };
-                    default: return new Token { Symbol = c, SemanticValue = d };
-                }
-            });
-
-            RegularExpression result = (RegularExpression)parser.Parse(tokens);
+            RegularExpression result = new RegularExpressionParser().Parse(s);
 
             CompiledRegularExpression compiled = result.Compile();
             Console.WriteLine(compiled.Match("Hello"));
