@@ -41,6 +41,8 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="Lang\GrammarParser.cs" />
+    <Compile Include="Lang\RegularExpressionParser.cs" />
     <Compile Include="Lexer\CharacterClasses\RangeCharacterClass.cs" />
     <Compile Include="Lexer\CharacterClasses\ExplicitCharacterClass.cs" />
     <Compile Include="Lexer\RegularExpressions\CharSetRegularExpression.cs" />
@@ -62,6 +64,7 @@
     <Compile Include="Lexer\CharacterClasses\CharacterClassCalculator.cs" />
     <Compile Include="Lexer\CharacterClasses\Union.cs" />
     <Compile Include="Parser\IConflictResolver.cs" />
+    <Compile Include="Parser\OperatorConflictResolver.cs" />
     <Compile Include="Parser\ParserItem.cs" />
     <Compile Include="Utils\SetComparer.cs" />
     <Compile Include="Lexer\RegularExpressions\UnionRegularExpression.cs" />

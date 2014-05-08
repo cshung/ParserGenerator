@@ -15,81 +15,9 @@ namespace Andrew.ParserGenerator
         {
             LexicalIdentifierSample();
             ExpressionGrammarSample();
-            ParseRegularExpression();
+            RegularExpressionSample();
             OperatorSample();
             GrammarSample();
-        }
-
-        private class GrammarParser
-        {
-            private LexicalAnalyzer lexer;
-            private Parser parser;
-
-            public GrammarParser()
-            {
-                Terminal nonTerminalIdentifier = new Terminal { DisplayName = "NT" };
-                Terminal terminalIdentifier = new Terminal { DisplayName = "T" };
-                Terminal arrow = new Terminal { DisplayName = ">" };
-                Terminal endline = new Terminal { DisplayName = "endl" };
-
-                NonTerminal grammar = new NonTerminal { DisplayName = "Grammar" };
-                NonTerminal completeSymbolList = new NonTerminal { DisplayName = "CompleteSymbolList" };
-                NonTerminal symbolList = new NonTerminal { DisplayName = "SymbolList" };
-                NonTerminal symbol = new NonTerminal { DisplayName = "Symbol" };
-                NonTerminal rules = new NonTerminal { DisplayName = "Rules" };
-                NonTerminal rule = new NonTerminal { DisplayName = "Rule" };
-                NonTerminal ruleElementList = new NonTerminal { DisplayName = "RuleElementList" };
-                NonTerminal ruleElement = new NonTerminal { DisplayName = "RuleElement" };
-
-                RegularExpressionParser regularExpressionParser = new RegularExpressionParser();
-
-                this.lexer = new LexicalAnalyzer
-                {
-                    Specification = new List<Tuple<RegularExpression, Terminal, Action<Token>>>
-                    {
-                        Tuple.Create<RegularExpression, Terminal, Action<Token>>(regularExpressionParser.Parse("[A-Z](_|[a-z]|[A-Z])*"), nonTerminalIdentifier, null),
-                        Tuple.Create<RegularExpression, Terminal, Action<Token>>(regularExpressionParser.Parse("[a-z](_|[a-z]|[A-Z])*"), terminalIdentifier, null),
-                        Tuple.Create<RegularExpression, Terminal, Action<Token>>(regularExpressionParser.Parse(">"), arrow, null),
-                        Tuple.Create<RegularExpression, Terminal, Action<Token>>(regularExpressionParser.Parse(" "), null, null),
-                        Tuple.Create<RegularExpression, Terminal, Action<Token>>(
-                        new ConcatenateRegularExpression {
-                            Left = new CharSetRegularExpression { CharSet = new ExplicitCharacterClass { Elements = { '\r' } } },
-                            Right = new CharSetRegularExpression { CharSet = new ExplicitCharacterClass { Elements = { '\n' } } }
-                        }
-                        , endline, null),
-                    }
-                };
-
-                Dictionary<string, Symbol> table = new Dictionary<string, Symbol>();
-
-                Grammar grammarGrammar = new Grammar
-                {
-                    Goal = grammar,
-                    Productions = new List<Production>
-                    {
-                        new Production { From = grammar, To = new List<Symbol>  { completeSymbolList, endline, nonTerminalIdentifier, endline, rules }, SemanticAction = args => new Grammar { Goal = ((NonTerminal)table[(string)args[2]]), Productions = ((IEnumerable<Production>)args[4]).ToList() } },
-                        new Production { From = completeSymbolList, To = new List<Symbol> { symbolList }, SemanticAction = (args) => { table.Clear(); foreach (Symbol s in (IEnumerable<Symbol>)args[0]) { table.Add(s.DisplayName, s); } return null; }},
-                        new Production { From = symbolList, To = new List<Symbol>  { symbol }, SemanticAction = args => new List<Symbol> { (Symbol)args[0] } },
-                        new Production { From = symbolList, To = new List<Symbol>  { symbol, symbolList }, SemanticAction = args => new List<Symbol> { (Symbol)args[0] }.Concat((IEnumerable<Symbol>)args[1]) },
-                        new Production { From = symbol, To = new List<Symbol> { nonTerminalIdentifier, endline }, SemanticAction = (args) => new NonTerminal { DisplayName = (string) args[0] } },
-                        new Production { From = symbol, To = new List<Symbol> { terminalIdentifier, endline }, SemanticAction = (args) => new Terminal { DisplayName = (string) args[0] } },
-                        new Production { From = rules, To = new List<Symbol> { rule }, SemanticAction = (args) => new List<Production> { (Production)args[0] } },
-                        new Production { From = rules, To = new List<Symbol> { rule, rules }, SemanticAction = (args) => (new List<Production> { (Production)args[0] }).Concat((IEnumerable<Production>)args[1])},
-                        new Production { From = rule,  To = new List<Symbol> { nonTerminalIdentifier, arrow, ruleElementList, endline }, SemanticAction = args => new Production { From = ((NonTerminal)table[(string)args[0]]), To = ((IEnumerable<Symbol>)args[2]).ToList() }},
-                        new Production { From = ruleElementList, To = new List<Symbol> { ruleElement }, SemanticAction = (args) => new List<Symbol> { (Symbol)args[0] } },
-                        new Production { From = ruleElementList, To = new List<Symbol> { ruleElement, ruleElementList }, SemanticAction = (args) => (new List<Symbol> { (Symbol)args[0] }).Concat((IEnumerable<Symbol>)args[1]) },
-                        new Production { From = ruleElement, To = new List<Symbol> { nonTerminalIdentifier }, SemanticAction = (args) => table[(string)args[0]] },
-                        new Production { From = ruleElement, To = new List<Symbol> { terminalIdentifier }, SemanticAction = (args) => table[(string)args[0]] },
-                    }
-                };
-                
-                this.parser = new ParserGenerator(grammarGrammar, ParserMode.SLR).Generate();
-            }
-
-            public Grammar Parse(string grammarText)
-            {
-                return (Grammar)this.parser.Parse(lexer.Analyze(grammarText));
-            }
         }
 
         private static void GrammarSample()
@@ -174,7 +102,7 @@ Param_name_value     > open_square_bracket param_name equal_sign param_value clo
                 }
             };
 
-            foreach (var token in lexicalAnalyzer.Analyze("Hello World error"))
+            foreach (var token in lexicalAnalyzer.Analyze("Hello World Compiler001 error"))
             {
                 Console.WriteLine(token.SemanticValue);
             }
@@ -225,74 +153,7 @@ Param_name_value     > open_square_bracket param_name equal_sign param_value clo
             Console.WriteLine(result);
         }
 
-        private class RegularExpressionParser
-        {
-            Terminal c = new Terminal { DisplayName = "char" };
-            Terminal pipe = new Terminal { DisplayName = "|" };
-            Terminal star = new Terminal { DisplayName = "*" };
-            Terminal lp = new Terminal { DisplayName = "(" };
-            Terminal rp = new Terminal { DisplayName = ")" };
-            Terminal lb = new Terminal { DisplayName = "[" };
-            Terminal rb = new Terminal { DisplayName = "]" };
-            Terminal hyphen = new Terminal { DisplayName = "-" };
-            Terminal caret = new Terminal { DisplayName = "^" };
-
-            NonTerminal re = new NonTerminal { DisplayName = "RE" };
-            NonTerminal reu = new NonTerminal { DisplayName = "REu" };
-            NonTerminal rec = new NonTerminal { DisplayName = "REc" };
-            NonTerminal cs = new NonTerminal { DisplayName = "CS" };
-            NonTerminal csu = new NonTerminal { DisplayName = "CSu" };
-            Parser parser;
-
-            public RegularExpressionParser()
-            {
-                Grammar grammar = new Grammar
-                {
-                    Goal = re,
-                    Productions = new List<Production>
-                {
-                    new Production { From = re, To = new List<Symbol> { reu }, SemanticAction = (a) => a[0] },
-                    new Production { From = re, To = new List<Symbol> { reu, pipe, re }, SemanticAction = (a) => new UnionRegularExpression { Left = (RegularExpression)a[0], Right = (RegularExpression)a[2] }},
-                    new Production { From = reu, To = new List<Symbol> { rec }, SemanticAction = (a) => a[0] },
-                    new Production { From = reu, To = new List<Symbol> { rec, reu }, SemanticAction = (a) => new ConcatenateRegularExpression { Left = (RegularExpression)a[0], Right = (RegularExpression)a[1] } },
-                    new Production { From = rec, To = new List<Symbol> { c }, SemanticAction = (a) => new CharSetRegularExpression { CharSet = new ExplicitCharacterClass { Elements = { (char)a[0] } } } },
-                    new Production { From = rec, To = new List<Symbol> { lb, cs, rb }, SemanticAction = (a) => new CharSetRegularExpression { CharSet = (CharacterClass)a[1] } },
-                    new Production { From = rec, To = new List<Symbol> { lb, caret, cs, rb }, SemanticAction = (a) => new CharSetRegularExpression { CharSet = new Complement { Operand = (CharacterClass)a[2] } } },
-                    new Production { From = rec, To = new List<Symbol> { rec, star }, SemanticAction = (a) => new KleeneStarRegularExpression { Operand = (RegularExpression) a[0] } },
-                    new Production { From = rec, To = new List<Symbol> { lp, re, rp }, SemanticAction = (a) => a[1] },
-                    new Production { From = cs, To = new List<Symbol> { csu }, SemanticAction = (a) => a[0] },
-                    new Production { From = cs, To = new List<Symbol> { csu, cs }, SemanticAction = (a) => new Union { Left = (CharacterClass)a[0], Right = (CharacterClass)a[1] } },
-                    new Production { From = csu, To = new List<Symbol> { c, hyphen, c }, SemanticAction = (a) => new RangeCharacterClass { From = (char)a[0], To = (char)a[2] } },
-                    new Production { From = csu, To = new List<Symbol> { c }, SemanticAction = (a) => new ExplicitCharacterClass { Elements = { (char)a[0] } } },
-                }
-                };
-                this.parser = new ParserGenerator(grammar, ParserMode.SLR).Generate();
-            }
-
-            public RegularExpression Parse(string s)
-            {
-                // A very simple scanner (which do not handle escape)
-                IEnumerable<Token> tokens = s.Select(d =>
-                {
-                    switch (d)
-                    {
-                        case '(': return new Token { Symbol = lp };
-                        case ')': return new Token { Symbol = rp };
-                        case '*': return new Token { Symbol = star };
-                        case '|': return new Token { Symbol = pipe };
-                        case '[': return new Token { Symbol = lb };
-                        case ']': return new Token { Symbol = rb };
-                        case '-': return new Token { Symbol = hyphen };
-                        case '^': return new Token { Symbol = caret };
-                        default: return new Token { Symbol = c, SemanticValue = d };
-                    }
-                });
-
-                return (RegularExpression)parser.Parse(tokens);
-            }
-        }
-
-        private static void ParseRegularExpression()
+        private static void RegularExpressionSample()
         {
             string s = "Hel*o|W(or)[^0-9][b-d]";
 
@@ -330,53 +191,6 @@ Param_name_value     > open_square_bracket param_name equal_sign param_value clo
             Console.WriteLine(answer);
         }
 
-        // TODO: Right associative operator
-        // TODO: Operator Precedence
-        class OperatorConflictResolver : IConflictResolver
-        {
-            public OperatorConflictResolver()
-            {
-                this.Left = new HashSet<Terminal>();
-            }
-
-            public HashSet<Terminal> Left { get; private set; }
-
-            public bool? ShouldFirstOverrideSecond(ParserItem first, ParserItem second)
-            {
-                bool isFirstReduce = first.ExpectedSymbols.Count() == 0;
-                bool isSecondReduce = second.ExpectedSymbols.Count() == 0;
-                if (isFirstReduce && !isSecondReduce)
-                {
-                    return PreferShiftOrReduce(second, first);
-                }
-                else if (!isFirstReduce && isSecondReduce)
-                {
-                    return PreferShiftOrReduce(first, second);
-                }
-                else
-                {
-                    // Cannot handle reduce/reduce conflict
-                    return null;
-                }
-            }
-
-            private bool? PreferShiftOrReduce(ParserItem first, ParserItem second)
-            {
-                // Prefer (T op T ., op) to (T . op T, op) for left associative operator
-                foreach (var op in this.Left)
-                {
-                    // TODO: Make pattern matching more declarative
-                    bool firstMatch = first.SeenSymbols.Count() == 1 && first.ExpectedSymbols.Count() == 2 && first.ExpectedSymbols[0] == op && first.ExpectedSymbols[1] == first.SeenSymbols[0];
-                    bool secondMatch = second.SeenSymbols.Count() == 3 && second.SeenSymbols[1] == op && second.SeenSymbols[0] == second.SeenSymbols[2];
-                    if (firstMatch && secondMatch)
-                    {
-                        return false;
-                    }
-                }
-
-                // Other case you don't know
-                return null;
-            }
-        }
+        
     }
 }
