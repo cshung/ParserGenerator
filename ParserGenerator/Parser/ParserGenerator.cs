@@ -80,22 +80,103 @@
 
         private void DumpTables()
         {
-            Console.WriteLine("Action table");
+            var terminalColumn = new List<Terminal>();
             foreach (var state in actionTable)
             {
                 foreach (var action in state.Value)
                 {
-                    Console.WriteLine("Action({0},{1}) = {2}", state.Key, action.Key.DisplayName, ToActionString(action.Value));
+                    if (!terminalColumn.Contains(action.Key))
+                    {
+                        terminalColumn.Add(action.Key);
+                    }
                 }
             }
 
-            Console.WriteLine("Goto table");
+            var nonTerminalColumn = new List<NonTerminal>();
             foreach (var state in gotoTable)
             {
                 foreach (var elem in state.Value)
                 {
-                    Console.WriteLine("Goto({0},{1}) = {2}", state.Key, elem.Key.DisplayName, elem.Value);
+                    if (!nonTerminalColumn.Contains(elem.Key))
+                    {
+                        nonTerminalColumn.Add(elem.Key);
+                    }
                 }
+            }
+
+            var states = new HashSet<int>(actionTable.Keys.Union(this.gotoTable.Keys)).ToArray();
+            Array.Sort(states);
+
+            Console.Write("<tr><td>&nbsp;</td>");
+            for (int j = 0; j < terminalColumn.Count; j++)
+            {
+                var terminal = terminalColumn[j];
+                Console.Write("<td>");
+                Console.Write(terminal.DisplayName);
+                Console.Write("</td>");
+            }
+            for (int j = 0; j < nonTerminalColumn.Count; j++)
+            {
+                var nonTerminal = nonTerminalColumn[j];
+                Console.Write("<td>");
+                Console.Write(nonTerminal.DisplayName);
+                Console.Write("</td>");
+            }
+            Console.WriteLine("</tr>");
+
+            for (int i = 0; i < states.Length; i++)
+            {
+                int state = states[i];
+                Console.Write("<tr><td>");
+                Console.Write(state);
+                Console.Write("</td>");
+                for (int j = 0; j < terminalColumn.Count; j++)
+                {
+                    Console.Write("<td>");
+                    var terminal = terminalColumn[j];
+                    if (actionTable.ContainsKey(state))
+                    {
+                        var actions = actionTable[state];
+                        if (actions.ContainsKey(terminal))
+                        {
+                            Console.Write(ToActionString(actions[terminal]));
+                        }
+                        else
+                        {
+                            Console.Write("&nbsp;");
+                        }
+                    }
+                    else
+                    {
+                        Console.Write("&nbsp;");
+                    }
+                    Console.Write("</td>");
+                }
+
+                for (int j = 0; j < nonTerminalColumn.Count; j++)
+                {
+                    Console.Write("<td>");
+                    var nonTerminal = nonTerminalColumn[j];
+                    if (gotoTable.ContainsKey(state))
+                    {
+                        var gotos = gotoTable[state];
+                        if (gotos.ContainsKey(nonTerminal))
+                        {
+                            Console.Write(gotos[nonTerminal]);
+                        }
+                        else
+                        {
+                            Console.Write("&nbsp;");
+                        }
+                    }
+                    else
+                    {
+                        Console.Write("&nbsp;");
+                    }
+                    Console.Write("</td>");
+                }
+
+                Console.WriteLine("</tr>");
             }
         }
 
