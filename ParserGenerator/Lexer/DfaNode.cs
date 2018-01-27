@@ -12,6 +12,14 @@
             this.id = counter++;
         }
 
+        public int Id
+        {
+            get
+            {
+                return this.id;
+            }
+        }
+
         public bool IsFinal { get; set; }
     }
 }

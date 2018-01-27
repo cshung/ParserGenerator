@@ -7,9 +7,18 @@
     {
         private int id;
         private static int counter = 0;
+
         public NfaNode()
         {
             this.id = counter++;
+        }
+
+        public int Id
+        {
+            get
+            {
+                return this.id;
+            }
         }
     }
 }

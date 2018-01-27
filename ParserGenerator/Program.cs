@@ -159,7 +159,7 @@ Param_name_value     > open_square_bracket param_name equal_sign param_value clo
 
             RegularExpression result = new RegularExpressionParser().Parse(s);
 
-            CompiledRegularExpression compiled = result.Compile();
+            CompiledRegularExpression compiled = result.Compile(dumpAutomatas: true);
             Console.WriteLine(compiled.Match("Hello"));
             Console.WriteLine(compiled.Match("World"));
         }

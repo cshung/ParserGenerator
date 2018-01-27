@@ -3,6 +3,7 @@
     using System;
     using System.Collections.Generic;
     using System.Linq;
+    using System.Text;
 
     public class Nfa
     {
@@ -77,7 +78,10 @@
             List<DfaEdge> dfaEdges = new List<DfaEdge>();
             Queue<HashSet<NfaNode>> pending = new Queue<HashSet<NfaNode>>();
 
-            dfaNodes.Add(dfaStart, new DfaNode());
+            // Note that subset construction does not necessarily build a minimized DFA
+            // TODO: Minimize the generated DFA
+
+            dfaNodes.Add(dfaStart, new DfaNode { IsFinal = dfaStart.Contains(this.EndNode) });
             pending.Enqueue(dfaStart);
             while (pending.Count > 0)
             {
@@ -103,6 +107,32 @@
                 Edges = dfaEdges
             };
             return result;
+        }
+
+        public string ToGraphViz()
+        {
+            StringBuilder sb = new StringBuilder();
+            sb.Append(@"digraph finite_state_machine {
+    rankdir=LR;
+    size=""8,5""
+
+    node[shape = doublecircle]; ");            
+            sb.AppendLine("    node[shape = circle];");
+            foreach (var edge in this.Edges)
+            {
+                sb.Append("    ");
+                sb.Append("S");
+                sb.Append(edge.SourceNode.Id);
+                sb.Append(" -> ");
+                sb.Append("S");
+                sb.Append(edge.TargetNode.Id);
+                sb.Append(@" [ label = """);
+                sb.Append(edge.Symbol);
+                sb.AppendLine(@""" ];");
+            }
+            sb.Append("}");
+
+            return sb.ToString();
         }
     }
 }
