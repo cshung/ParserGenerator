@@ -26,6 +26,7 @@
             result.Edges = new List<NfaEdge>();
             result.Edges.Add(new NfaEdge { SourceNode = startNode, TargetNode = operand.StartNode });
             result.Edges.Add(new NfaEdge { SourceNode = operand.EndNode, TargetNode = endNode });
+            result.Edges.Add(new NfaEdge { SourceNode = operand.StartNode, TargetNode = operand.EndNode });
             result.Edges.Add(new NfaEdge { SourceNode = operand.EndNode, TargetNode = operand.StartNode });
             result.Edges.AddRange(operand.Edges);
             return result;
