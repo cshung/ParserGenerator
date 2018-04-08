@@ -21,6 +21,8 @@
 
         public object Parse(IEnumerable<Token> terminals)
         {
+            bool dumpParserTrace = false;
+
             parserStack.Push(new ParserState { Token = null, State = 0 });
             foreach (var token in terminals.Concat(new List<Token> { new Token { Symbol = Terminal.eof, SemanticValue = null } }))
             {
@@ -28,6 +30,10 @@
                 bool shifted = false;
                 while (!shifted)
                 {
+                    if (dumpParserTrace)
+                    {
+                        Console.WriteLine(string.Join(",", this.parserStack.Reverse().Select(t => t.Token == null ? "" : t.Token.Symbol.DisplayName)));
+                    }
                     int currentState = parserStack.Peek().State;
                     Dictionary<Terminal, ParseAction> actionMap;
                     if (this.actionTable.TryGetValue(currentState, out actionMap))
@@ -57,7 +63,11 @@
                                     int nextState;
                                     if (gotoMap.TryGetValue(reductionProduction.From, out nextState))
                                     {
-                                        object semanticValue = reductionProduction.SemanticAction(semanticValues);
+                                        object semanticValue = null;
+                                        if (reductionProduction.SemanticAction != null)
+                                        {
+                                            semanticValue = reductionProduction.SemanticAction(semanticValues);
+                                        }
                                         parserStack.Push(new ParserState { Token = new Token { Symbol = reductionProduction.From, SemanticValue = semanticValue }, State = nextState });
                                     }
                                     else

@@ -61,6 +61,22 @@ Param_name_value     > open_square_bracket param_name equal_sign param_value clo
             grammarText = grammarText + "\r\n";
             Grammar grammar = new GrammarParser().Parse(grammarText);
             Parser parser = new ParserGenerator(grammar, ParserMode.SLR).Generate();
+            Dictionary<String, Terminal> terminals = new Dictionary<String, Terminal>();
+            foreach (Production p in grammar.Productions)
+            {
+                foreach (Symbol s in p.To)
+                {
+                    Terminal t = s as Terminal;
+                    if (t != null)
+                    {
+                        if (!terminals.ContainsKey(t.DisplayName))
+                        {
+                            terminals.Add(t.DisplayName, t);
+                        }
+                    }
+                }
+            }
+            parser.Parse("param_tag param_name".Split(new char[] { ' ' }, StringSplitOptions.RemoveEmptyEntries).Select(n => new Token { Symbol = terminals[n] }));
         }
 
         private static void LexicalIdentifierSample()
