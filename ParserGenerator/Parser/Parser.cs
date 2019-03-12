@@ -30,10 +30,6 @@
                 bool shifted = false;
                 while (!shifted)
                 {
-                    if (dumpParserTrace)
-                    {
-                        Console.WriteLine(string.Join(",", this.parserStack.Reverse().Select(t => t.Token == null ? "" : t.Token.Symbol.DisplayName)));
-                    }
                     int currentState = parserStack.Peek().State;
                     Dictionary<Terminal, ParseAction> actionMap;
                     if (this.actionTable.TryGetValue(currentState, out actionMap))
@@ -46,6 +42,10 @@
                                 ShiftAction shiftAction = (ShiftAction)nextAction;
                                 parserStack.Push(new ParserState { Token = token, State = shiftAction.ToState });
                                 shifted = true;
+                                if (dumpParserTrace)
+                                {
+                                    Console.WriteLine("Shift: " + string.Join(",", this.parserStack.Reverse()));
+                                }
                             }
                             else if (nextAction is ReduceAction)
                             {
@@ -55,6 +55,10 @@
                                 for (int i = 0; i < reductionProduction.To.Count; i++)
                                 {
                                     semanticValues[reductionProduction.To.Count - i - 1] = parserStack.Pop().Token.SemanticValue;
+                                    if (dumpParserTrace)
+                                    {
+                                        Console.WriteLine("Reduce pop: " + string.Join(",", this.parserStack.Reverse()));
+                                    }
                                 }
                                 currentState = parserStack.Peek().State;
                                 Dictionary<NonTerminal, int> gotoMap;
@@ -69,6 +73,10 @@
                                             semanticValue = reductionProduction.SemanticAction(semanticValues);
                                         }
                                         parserStack.Push(new ParserState { Token = new Token { Symbol = reductionProduction.From, SemanticValue = semanticValue }, State = nextState });
+                                        if (dumpParserTrace)
+                                        {
+                                            Console.WriteLine("Reduce: " + string.Join(",", this.parserStack.Reverse()));
+                                        }
                                     }
                                     else
                                     {
@@ -104,6 +112,10 @@
         {
             public Token Token { get; set; }
             public int State { get; set; }
+            public override string ToString()
+            {
+                return string.Format("{0}({1})", this.Token == null ? "empty" : this.Token.Symbol.DisplayName, this.State);
+            }
         };
     }
 }

@@ -107,6 +107,7 @@
             var states = new HashSet<int>(actionTable.Keys.Union(this.gotoTable.Keys)).ToArray();
             Array.Sort(states);
 
+            Console.WriteLine("<table border='1'>");
             Console.Write("<tr><td>&nbsp;</td>");
             for (int j = 0; j < terminalColumn.Count; j++)
             {
@@ -178,6 +179,7 @@
 
                 Console.WriteLine("</tr>");
             }
+            Console.WriteLine("</table>");
         }
 
         private string ToActionString(ParseAction parseAction)
