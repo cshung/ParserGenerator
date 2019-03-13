@@ -107,79 +107,85 @@
             var states = new HashSet<int>(actionTable.Keys.Union(this.gotoTable.Keys)).ToArray();
             Array.Sort(states);
 
-            Console.WriteLine("<table border='1'>");
-            Console.Write("<tr><td>&nbsp;</td>");
+            List<List<String>> table = new List<List<String>>();
+            table.Add(new List<String>());
+            table[table.Count - 1].Add(string.Empty);
+
+
             for (int j = 0; j < terminalColumn.Count; j++)
             {
                 var terminal = terminalColumn[j];
-                Console.Write("<td>");
-                Console.Write(terminal.DisplayName);
-                Console.Write("</td>");
+                table[table.Count - 1].Add(terminal.DisplayName);
             }
             for (int j = 0; j < nonTerminalColumn.Count; j++)
             {
                 var nonTerminal = nonTerminalColumn[j];
-                Console.Write("<td>");
-                Console.Write(nonTerminal.DisplayName);
-                Console.Write("</td>");
+                table[table.Count - 1].Add(nonTerminal.DisplayName);
             }
-            Console.WriteLine("</tr>");
+
 
             for (int i = 0; i < states.Length; i++)
             {
                 int state = states[i];
-                Console.Write("<tr><td>");
-                Console.Write(state);
-                Console.Write("</td>");
+                table.Add(new List<String>());
+                table[table.Count - 1].Add(state.ToString());
                 for (int j = 0; j < terminalColumn.Count; j++)
                 {
-                    Console.Write("<td>");
                     var terminal = terminalColumn[j];
                     if (actionTable.ContainsKey(state))
                     {
                         var actions = actionTable[state];
                         if (actions.ContainsKey(terminal))
                         {
-                            Console.Write(ToActionString(actions[terminal]));
+                            table[table.Count - 1].Add(ToActionString(actions[terminal]));
                         }
                         else
                         {
-                            Console.Write("&nbsp;");
+                            table[table.Count - 1].Add("");
                         }
                     }
                     else
                     {
-                        Console.Write("&nbsp;");
+                        table[table.Count - 1].Add("");
                     }
-                    Console.Write("</td>");
                 }
 
                 for (int j = 0; j < nonTerminalColumn.Count; j++)
                 {
-                    Console.Write("<td>");
                     var nonTerminal = nonTerminalColumn[j];
                     if (gotoTable.ContainsKey(state))
                     {
                         var gotos = gotoTable[state];
                         if (gotos.ContainsKey(nonTerminal))
                         {
-                            Console.Write(gotos[nonTerminal]);
+                            table[table.Count - 1].Add(gotos[nonTerminal].ToString());
                         }
                         else
                         {
-                            Console.Write("&nbsp;");
+                            table[table.Count - 1].Add("");
                         }
                     }
                     else
                     {
-                        Console.Write("&nbsp;");
+                        table[table.Count - 1].Add("");
                     }
-                    Console.Write("</td>");
                 }
-
-                Console.WriteLine("</tr>");
             }
-            Console.WriteLine("</table>");
+            bool firstRow = true;
+            foreach (var row in table)
+            {
+                Console.Write("|");
+                Console.Write(string.Join("|", row));
+                Console.WriteLine("|");
+                if (firstRow)
+                {
+                    Console.Write("|");
+                    Console.Write(string.Join("|", row.Select(_=>"-")));
+                    Console.Write("-");
+                    Console.WriteLine("|");
+                    firstRow = false;
+                }
+            }
         }
 
         private string ToActionString(ParseAction parseAction)

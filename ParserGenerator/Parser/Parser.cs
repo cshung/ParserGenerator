@@ -21,10 +21,13 @@
 
         public object Parse(IEnumerable<Token> terminals)
         {
+            Token[] terminalsWithEof = terminals.Concat(new List<Token> { new Token { Symbol = Terminal.eof, SemanticValue = null } }).ToArray();
+            int terminalIndex = 0;
             bool dumpParserTrace = false;
+            bool dumpParserDerivation = false;
 
             parserStack.Push(new ParserState { Token = null, State = 0 });
-            foreach (var token in terminals.Concat(new List<Token> { new Token { Symbol = Terminal.eof, SemanticValue = null } }))
+            foreach (var token in terminalsWithEof)
             {
                 var terminal = token.Symbol as Terminal;
                 bool shifted = false;
@@ -39,6 +42,7 @@
                         {
                             if (nextAction is ShiftAction)
                             {
+                                terminalIndex++;
                                 ShiftAction shiftAction = (ShiftAction)nextAction;
                                 parserStack.Push(new ParserState { Token = token, State = shiftAction.ToState });
                                 shifted = true;
@@ -77,6 +81,10 @@
                                         {
                                             Console.WriteLine("Reduce: " + string.Join(",", this.parserStack.Reverse()));
                                         }
+                                        if (dumpParserDerivation)
+                                        {
+                                            Console.WriteLine("Derivation: " + string.Join(" ", this.parserStack.Reverse().Select(s => s.Token == null ? "" : s.Token.Symbol.DisplayName).Concat(terminalsWithEof.Skip(terminalIndex).Select(t => t.Symbol.DisplayName))));
+                                        }
                                     }
                                     else
                                     {
@@ -114,7 +122,7 @@
             public int State { get; set; }
             public override string ToString()
             {
-                return string.Format("{0}({1})", this.Token == null ? "empty" : this.Token.Symbol.DisplayName, this.State);
+                return string.Format("{0},{1}", this.Token == null ? "empty" : this.Token.Symbol.DisplayName, this.State);
             }
         };
     }
