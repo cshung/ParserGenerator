@@ -12,7 +12,7 @@
 
         public int GetHashCode(HashSet<T> obj)
         {
-            // This guarentee same hash code for same set
+            // This guarantee same hash code for same set
             return obj.Select(t => t.GetHashCode()).Aggregate(0, (x, y) => x ^ y);
         }
     }
