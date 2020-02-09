@@ -7,12 +7,8 @@
     public class RangeCharacterClass : LeafCharacterClass
     {
         public char From { get; set; }
-        public char To { get; set; }
 
-        public override void FindLeafCharacterClasses(List<LeafCharacterClass> solution)
-        {
-            solution.Add(this);
-        }
+        public char To { get; set; }
 
         public override bool Contains(char c)
         {

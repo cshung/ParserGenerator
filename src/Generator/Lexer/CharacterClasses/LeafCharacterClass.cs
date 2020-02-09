@@ -10,6 +10,11 @@
             this.Origins = new List<LeafCharacterClass>();
         }
 
+        public override void FindLeafCharacterClasses(List<LeafCharacterClass> solution)
+        {
+            solution.Add(this);
+        }
+
         public static LeafCharacterClass Others = new OtherSet();
 
         public List<LeafCharacterClass> Origins { get; private set; }

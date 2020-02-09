@@ -13,11 +13,6 @@
             this.Elements = new HashSet<char>();
         }
 
-        public override void FindLeafCharacterClasses(List<LeafCharacterClass> solution)
-        {
-            solution.Add(this);
-        }
-
         public override bool Contains(char c)
         {
             return this.Elements.Contains(c);
