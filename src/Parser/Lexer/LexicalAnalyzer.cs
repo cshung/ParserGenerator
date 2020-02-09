@@ -6,14 +6,13 @@
 
     public class LexicalAnalyzer
     {
-        public List<Tuple<RegularExpression, Terminal, Action<Token>>> Specification { get; set; }
+        public List<Tuple<CompiledRegularExpression, Terminal, Action<Token>>> Specification { get; set; }
 
         public IEnumerable<Token> Analyze(string s)
         {
-            List<Tuple<CompiledRegularExpression, Terminal, Action<Token>>> compiledSpecification = this.Specification.Select(spec => Tuple.Create(spec.Item1.Compile(), spec.Item2, spec.Item3)).ToList();
             while (s.Length > 0)
             {   
-                List<Tuple<string, Terminal, Action<Token>>> matches = compiledSpecification.Select(c => Tuple.Create(c.Item1.LongestMatch(s), c.Item2, c.Item3)).Where(m => m.Item1 != null).ToList();
+                List<Tuple<string, Terminal, Action<Token>>> matches = Specification.Select(c => Tuple.Create(c.Item1.LongestMatch(s), c.Item2, c.Item3)).Where(m => m.Item1 != null).ToList();
                 if (matches.Count != 0)
                 {
                     int maximalLength = matches.Select(m => m.Item1.Length).Max();

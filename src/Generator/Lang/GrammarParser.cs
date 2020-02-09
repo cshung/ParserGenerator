@@ -31,13 +31,13 @@
 
             this.lexer = new LexicalAnalyzer
             {
-                Specification = new List<Tuple<RegularExpression, Terminal, Action<Token>>>
+                Specification = new List<Tuple<CompiledRegularExpression, Terminal, Action<Token>>>
                     {
-                        Tuple.Create<RegularExpression, Terminal, Action<Token>>(regularExpressionParser.Parse("[A-Z](_|[a-z]|[A-Z])*"), nonTerminalIdentifier, null),
-                        Tuple.Create<RegularExpression, Terminal, Action<Token>>(regularExpressionParser.Parse("[a-z](_|[a-z]|[A-Z])*"), terminalIdentifier, null),
-                        Tuple.Create<RegularExpression, Terminal, Action<Token>>(regularExpressionParser.Parse(">"), arrow, null),
-                        Tuple.Create<RegularExpression, Terminal, Action<Token>>(regularExpressionParser.Parse(" "), null, null),
-                        Tuple.Create<RegularExpression, Terminal, Action<Token>>(regularExpressionParser.Parse("\r\n"), endline, null),
+                        Tuple.Create<CompiledRegularExpression, Terminal, Action<Token>>(regularExpressionParser.Parse("[A-Z](_|[a-z]|[A-Z])*").Compile(), nonTerminalIdentifier, null),
+                        Tuple.Create<CompiledRegularExpression, Terminal, Action<Token>>(regularExpressionParser.Parse("[a-z](_|[a-z]|[A-Z])*").Compile(), terminalIdentifier, null),
+                        Tuple.Create<CompiledRegularExpression, Terminal, Action<Token>>(regularExpressionParser.Parse(">").Compile(), arrow, null),
+                        Tuple.Create<CompiledRegularExpression, Terminal, Action<Token>>(regularExpressionParser.Parse(" ").Compile(), null, null),
+                        Tuple.Create<CompiledRegularExpression, Terminal, Action<Token>>(regularExpressionParser.Parse("\r\n").Compile(), endline, null),
                     }
             };
 

@@ -110,10 +110,10 @@ Param_name_value     > open_square_bracket param_name equal_sign param_value clo
 
             LexicalAnalyzer lexicalAnalyzer = new LexicalAnalyzer
             {
-                Specification = new List<Tuple<RegularExpression, Terminal, Action<Token>>>
+                Specification = new List<Tuple<CompiledRegularExpression, Terminal, Action<Token>>>
                 {
-                    Tuple.Create<RegularExpression, Terminal, Action<Token>>(identifier, id, null),
-                    Tuple.Create<RegularExpression, Terminal, Action<Token>>(whitespace, null, null)
+                    Tuple.Create<CompiledRegularExpression, Terminal, Action<Token>>(identifier.Compile(), id, null),
+                    Tuple.Create<CompiledRegularExpression, Terminal, Action<Token>>(whitespace.Compile(), null, null)
                 }
             };
 
