@@ -12,7 +12,7 @@
             this.Operand.FindLeafCharacterClasses(solution);
         }
 
-        public override void Compute(List<LeafCharacterClass> allAtoms)
+        public override void PickAtoms(List<LeafCharacterClass> allAtoms)
         {
             this.Atoms.AddRange(allAtoms.Except(this.Operand.Atoms));
         }

@@ -13,6 +13,6 @@
 
         public List<LeafCharacterClass> Atoms { get; private set; }
 
-        public abstract void Compute(List<LeafCharacterClass> allAtoms);
+        public abstract void PickAtoms(List<LeafCharacterClass> allAtoms);
     }
 }

@@ -29,7 +29,7 @@
             this.Origins.Add(this);
         }
 
-        public override void Compute(List<LeafCharacterClass> allAtoms)
+        public override void PickAtoms(List<LeafCharacterClass> allAtoms)
         {
             // no-op - computation of leaf set is done externally
         }

@@ -29,7 +29,7 @@
             // Step 4: Compute all sets recursively
             foreach (var characterClass in characterClasses)
             {
-                characterClass.Compute(atoms);
+                characterClass.PickAtoms(atoms);
             }
 
             return atoms;

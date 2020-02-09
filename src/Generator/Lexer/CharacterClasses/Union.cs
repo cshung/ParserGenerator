@@ -14,7 +14,7 @@
             this.Right.FindLeafCharacterClasses(solution);
         }
 
-        public override void Compute(List<LeafCharacterClass> allAtoms)
+        public override void PickAtoms(List<LeafCharacterClass> allAtoms)
         {
             this.Atoms.AddRange(this.Left.Atoms.Union(this.Right.Atoms));
         }
