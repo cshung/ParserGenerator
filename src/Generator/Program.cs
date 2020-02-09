@@ -15,7 +15,6 @@ namespace Andrew.ParserGenerator
         {
             LexicalIdentifierSample();
             ExpressionGrammarSample();
-            RegularExpressionSample();
             OperatorSample();
             GrammarSample();
         }
@@ -167,17 +166,6 @@ Param_name_value     > open_square_bracket param_name equal_sign param_value clo
                 new Token { Symbol = intTerm, SemanticValue = 4 },
             });
             Console.WriteLine(result);
-        }
-
-        private static void RegularExpressionSample()
-        {
-            string s = "Hel*o|W(or)[^0-9][b-d]";
-
-            RegularExpression result = new RegularExpressionParser().Parse(s);
-
-            CompiledRegularExpression compiled = result.Compile(dumpAutomatas: false);
-            Console.WriteLine(compiled.Match("Hello"));
-            Console.WriteLine(compiled.Match("World"));
         }
 
         private static void OperatorSample()

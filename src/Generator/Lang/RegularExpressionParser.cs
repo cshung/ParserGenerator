@@ -6,7 +6,7 @@
     using System.Text;
     using System.Threading.Tasks;
 
-    internal class RegularExpressionParser
+    public class RegularExpressionParser
     {
         Terminal c = new Terminal { DisplayName = "char" };
         Terminal pipe = new Terminal { DisplayName = "|" };
