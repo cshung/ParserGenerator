@@ -30,5 +30,97 @@ To summarize this phase, each character class will be associated with a list of 
 ## Finite state automatas
 After computing the atoms, the regular expression is transformed into a non-deterministic finite state automata in the standard way. The only special thing is that using multiple edges (which is allowed in non-deterministic finite automata), we create one edge per atom for `CharSetRegularExpression`. The standard subset construction algorithm is then used to convert that into a deterministic finite automata. Together with the atoms, the deterministic finite automata is packaged into the `CompiledRegularExpression`. 
 
-## Grammar
-TODO
+# Grammar
+This project includes a LR(1) and SLR parser generator that takes a context free grammar to a set of tables that drive a bottom up parser.
+
+## Parser item
+
+### Basic ideas
+
+As an example, we will be using this grammar:
+
+```
+Expr -> Expr + Term
+Expr -> Expr - Term
+Expr -> Term
+Term -> Factor * Term
+Term -> Factor
+Factor -> ( Expr )
+Factor -> intTerm
+```
+
+At the center of the parser generator, we have an abstraction called `ParserItem`. A parser item represents the progress towards completing a production. It could be:
+
+`Expr -> Expr . + Term`
+
+That represents the fact that we are trying to complete the production `Expr -> Expr + Term`, and we have already seen `Expr`, and waiting for a `+` and a `Term`. This is an easy case, if we see a `+`, then we proceed to:
+
+`Expr -> Expr + . Term`.
+
+However, the next step is hard. The input is not going to give us a non-terminal, on no inputs, the parser item could proceed to:
+
+`Term -> . Factor * Term`
+
+or 
+
+`Term -> . Factor`
+
+Obviously, these will, on no inputs, proceed to even more parser items.
+
+With out understanding, we can built a conceptual graph of parser items. Some of them are linked through a terminal, like:
+
+`Expr -> Expr . + Term` is pointing to `Expr -> Expr + . Term` with the terminal `+`.
+
+and some of them are linked through an fabricated terminal named `epilson`, representing the fact that they do not require inputs:
+
+`Expr -> Expr + . Term` is pointing to `Term -> . Factor` with the terminal `epsilon`.
+
+We also build links between parser items through non-terminals, such as:
+
+`Expr -> Expr + . Term` is pointing to `Expr -> Expr + Term .` with the non terminal `Term`.
+
+Once we have the graph, we can apply the subset construction algorithm on it, and we arrived at a graph with no epsilon transition and no multiple edges. Each node in the graph consists of multiple parser items. These nodes are customarily called the canonical sets. They are linked together though both terminals and non-terminals.
+
+Now we can drive the parsing through this graph. We starts with the canonical set containing the beginning of the goal production, and walk towards the acceptance. There are a few operations that one could do.
+
+**Shift**: If the current state is a canonical set with no completed parser item, the input continues with a terminal `t`, and there is a link to another canonical set through `t`. Then we just go there. Note that we have to remember, in a stack, where we were together with the terminal we just saw.
+
+**Reduce**: If the current state is a canonical set, with a completed parser item, then we can pop the items off the stack and applies the production. That let's us know what the state was before the reduction, and then we know where to go after getting the new non terminal.
+
+> Note that since we created the new non-terminal and performed a state transition, a reduction could lead to another reduction - leading to a chain reaction.
+
+**Accept**: If just reduced our goal production and the next terminal is `eof`. Then we accept the string.
+
+**Error**: If we didn't meet these rules, then either we have a wrong grammar, or a wrong input.
+
+### Determinism
+
+As is, the algorithm above allows multiple actions at the same canonical set. For example, we could have a canonical set that continues with a terminal but also contains a completed parser item, or if a canonical set contains more than one completed parser item. The former is called a shift-reduce conflict, and the latter is called a reduce-reduce conflict. Both indicates the grammar is ambigious, causing the parser not sure what to do.
+
+> Note that a shift-shift conflict is impossible, due to the use of the subset construction algorithm.
+
+These conflicts originate from the fact that we allow reduce too often. To eliminate conflicts, we restrict reduction. Here is where LR(1) and SLR algorithm differs. It make senses now to consider 
+
+**First set of a non-terminal**: The first set is the set of all terminals that could start a non-terminal.
+
+**Follow set of a non-terminal**: The follow set is the set of all terminals that can come after a non-terminal.
+
+Both of them could be computed using a fixed point algorithm. 
+
+With the follow sets, we could restrict reduction only when a non-terminal its follow set is found, this is known as the SLR algorithm.
+
+LR is a bit more complicated. We wish to restrict a reduction to exactly what is expected. To that end, we introduce an extra field named lookahead to a parser item.
+
+> The lookahead of a parser item is a the terminal that we expect **after** the production is completed.
+
+The lookahead symbol for the goal production is trivial, it has to be `eof`.
+
+As new parser items are introduced to the graph, there are two cases:
+
+The parser item moves forward with a terminal, in that case, the lookahead symbol simply stays the same.
+
+If a new parser item is created with a new production, we can check the first set what should follow. 
+
+With a lookahead available in a parser item, now we can proceed to the reduction only when we see exactly that lookahead terminal.
+
+That concludes the LR(1) algorithm.
