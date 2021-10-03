@@ -7,194 +7,259 @@ namespace Andrew.ParserGenerator
 {
     using System;
     using System.Collections.Generic;
+    using System.IO;
     using System.Linq;
+    using System.Text;
+    using System.Text.RegularExpressions;
 
     public static class Program
     {
         public static void Main(string[] args)
         {
-            LexicalIdentifierSample();
-            ExpressionGrammarSample();
-            OperatorSample();
-            GrammarSample();
+            AnalyzeDefines();
         }
 
-        private static void GrammarSample()
+        public abstract class Node
         {
-            string grammarText = @"
-close_brace
-close_paren
-close_square_bracket
-dotdotdot
-equal_sign
-open_brace
-open_paren
-open_square_bracket
-Param_desc
-Param_doc
-param_name
-Param_name_value
-param_tag
-param_type
-Param_type_desc
-param_value
-pipe
-Pipe_param_type_list
-star
+            public abstract void Show(StringBuilder sb);
+        }
 
-Param_doc
-Param_doc            > param_tag Param_name_value
-Param_doc            > param_tag open_brace Param_type_desc close_brace Param_name_value Param_desc 
-Param_type_desc      > param_type
-Param_type_desc      > param_type equal_sign
-Param_type_desc      > open_paren param_type Pipe_param_type_list close_paren
-Pipe_param_type_list > pipe param_type 
-Pipe_param_type_list > pipe param_type Pipe_param_type_list
-Param_type_desc      > star
-Param_type_desc      > dotdotdot param_type
-Param_name_value     > param_name
-Param_name_value     > open_square_bracket param_name close_square_bracket
-Param_name_value     > open_square_bracket param_name equal_sign param_value close_square_bracket
-";
-            grammarText = grammarText.Trim();
-            grammarText = grammarText + "\r\n";
-            Grammar grammar = new GrammarParser().Parse(grammarText);
-            Parser parser = new ParserGenerator(grammar, ParserMode.SLR).Generate();
-            Dictionary<String, Terminal> terminals = new Dictionary<String, Terminal>();
-            foreach (Production p in grammar.Productions)
+        public class And : Node
+        {
+            public Node Left { get; set; }
+            public Node Right { get; set; }
+
+            public override void Show(StringBuilder sb)
             {
-                foreach (Symbol s in p.To)
-                {
-                    Terminal t = s as Terminal;
-                    if (t != null)
-                    {
-                        if (!terminals.ContainsKey(t.DisplayName))
-                        {
-                            terminals.Add(t.DisplayName, t);
-                        }
-                    }
-                }
+                sb.Append("(");
+                this.Left.Show(sb);
+                sb.Append(" && ");
+                this.Right.Show(sb);
+                sb.Append(")");
             }
-            parser.Parse("param_tag param_name".Split(new char[] { ' ' }, StringSplitOptions.RemoveEmptyEntries).Select(n => new Token { Symbol = terminals[n] }));
         }
 
-        private static void LexicalIdentifierSample()
+        public class Or : Node
         {
-            RegularExpression identifier = new ConcatenateRegularExpression
+            public Node Left { get; set; }
+            public Node Right { get; set; }
+
+            public override void Show(StringBuilder sb)
             {
-                Left = new CharSetRegularExpression { CharSet = new RangeCharacterClass { From = 'A', To = 'Z' } },
-                Right = new KleeneStarRegularExpression
+                sb.Append("(");
+                this.Left.Show(sb);
+                sb.Append(" || ");
+                this.Right.Show(sb);
+                sb.Append(")");
+            }
+        }
+
+        public class Not : Node
+        {
+            public Node Op { get; set; }
+
+            public override void Show(StringBuilder sb)
+            {
+                sb.Append("!");
+                this.Op.Show(sb);
+            }
+        }
+
+        public class Sym : Node
+        {
+            public string Symbol { get; set; }
+
+            public override void Show(StringBuilder sb)
+            {
+                sb.Append(this.Symbol);
+            }
+        }
+
+        private static void AnalyzeDefines()
+        {
+            LexicalAnalyzer lexicalAnalyzer;
+            Parser parser;
+            CreateDefinesExpressionParser(out lexicalAnalyzer, out parser);
+
+            string[] lines = File.ReadAllLines(@"C:\dev\runtime\src\coreclr\gc\gc.cpp");
+            Stack<Node> define = new Stack<Node>();
+            HashSet<string> preprocessors = new HashSet<string>();
+            List<Tuple<string, string>> pairs = new List<Tuple<string, string>>();
+            int popcount = 1;
+            foreach (var l in lines)
+            {
+                string line = l;
+                Regex comment = new Regex(" *//.*");
+                line = comment.Replace(line, "");
+                if (line.StartsWith("#"))
                 {
-                    Operand = new CharSetRegularExpression
+                    string[] tokens = line.Split(" ", StringSplitOptions.RemoveEmptyEntries);
+                    string preprocessor = tokens[0];
+                    preprocessors.Add(preprocessor);
+                    string parse;
+                    Node top = null;
+                    Node expression = null;
+                    switch (preprocessor)
                     {
-                        CharSet = new Union
-                        {
-                            Left = new RangeCharacterClass { From = 'a', To = 'z' },
-                            Right = new RangeCharacterClass { From = '0', To = '9' },
-                        }
+                        case "#if":
+                            parse = line.Replace("#if", "").Replace(" ", "");
+                            expression = (Node)parser.Parse(lexicalAnalyzer.Analyze(parse));
+                            define.Push(expression);
+                            break;
+                        case "#ifdef":
+                            define.Push(new Sym { Symbol = tokens[1] });
+                            break;
+                        case "#ifndef":
+                            define.Push(new Not { Op = new Sym { Symbol = tokens[1] } });
+                            break;
+                        case "#else":
+                            top = define.Pop();
+                            define.Push(Negate(top));
+                            break;
+                        case "#elif":
+                            parse = line.Replace("#elif", "").Replace(" ", "");
+                            expression = (Node)parser.Parse(lexicalAnalyzer.Analyze(parse));
+                            top = define.Pop();
+                            define.Push(Negate(top));
+                            define.Push(expression);
+                            popcount++;
+                            break;
+
+                        case "#endif":
+                            for (int count = 0; count < popcount; count++)
+                            {
+                                define.Pop();
+                            }
+                            popcount = 1;
+                            break;
                     }
                 }
-            };
-            RegularExpression whitespace = new KleeneStarRegularExpression
-            {
-                Operand = new CharSetRegularExpression
+                StringBuilder sb = new StringBuilder();
+                foreach (var node in define)
                 {
-                    CharSet = new ExplicitCharacterClass
-                    {
-                        Elements = { ' ' },
-                    },
+                    node.Show(sb);
+                    sb.Append(",");
+                }
+                pairs.Add(Tuple.Create(sb.ToString(), l));
+            }
+            int max = 0;
+            foreach (var pair in pairs)
+            {
+                max = Math.Max(pair.Item1.Length, max);
+            }
+            max = max + 1;
+            StringBuilder outputBuilder = new StringBuilder();
+            foreach (var pair in pairs)
+            {
+                outputBuilder.Append("/*");
+                outputBuilder.Append(pair.Item1);
+                int pad = max - pair.Item1.Length;
+                outputBuilder.Append(new string(' ', pad));
+                outputBuilder.Append("*/");
+                outputBuilder.Append(pair.Item2);
+                outputBuilder.AppendLine();
+                /*
+                if (pair.Item1.Length == max - 1)
+                {
+                    outputBuilder.AppendLine(pair.Item1);
+                }
+                */
+            }
+            Console.WriteLine(outputBuilder);
+        }
+
+        private static Node Negate(Node op)
+        {
+            Not not = op as Not;
+            if (not == null)
+            {
+                return new Not { Op = op };
+            }
+            else
+            {
+                return not.Op;
+            }
+        }
+
+        private static void CreateDefinesExpressionParser(out LexicalAnalyzer lexicalAnalyzer, out Parser parser)
+        {
+            RegularExpressionParser regularExpressionParser = new RegularExpressionParser();
+            RegularExpression zeroExpression = regularExpressionParser.Parse("0");
+            RegularExpression oneExpression = regularExpressionParser.Parse("1");
+            RegularExpression definedExpression = regularExpressionParser.Parse("defined");
+            RegularExpression bangExpression = regularExpressionParser.Parse("!");
+            RegularExpression andExpression = regularExpressionParser.Parse("&&");
+            RegularExpression orExpression = new ConcatenateRegularExpression
+            {
+                Left = new CharSetRegularExpression
+                {
+                    CharSet = new ExplicitCharacterClass { Elements = { '|' } },
+                },
+                Right = new CharSetRegularExpression
+                {
+                    CharSet = new ExplicitCharacterClass { Elements = { '|' } },
                 },
             };
+            RegularExpression lpExpression = new CharSetRegularExpression
+            {
+                CharSet = new ExplicitCharacterClass { Elements = { '(' } },
+            };
+            RegularExpression rpExpression = new CharSetRegularExpression
+            {
+                CharSet = new ExplicitCharacterClass { Elements = { ')' } },
+            };
+            RegularExpression symbolExpression = regularExpressionParser.Parse("([A-Z]|[a-z]|_|[0-9])*");
 
-            Terminal id = new Terminal { DisplayName = "Ident" };
+            Terminal zero = new Terminal { DisplayName = "Zero" };
+            Terminal one = new Terminal { DisplayName = "One" };
+            Terminal defined = new Terminal { DisplayName = "Defined" };
+            Terminal bang = new Terminal { DisplayName = "Bang" };
+            Terminal and = new Terminal { DisplayName = "And" };
+            Terminal or = new Terminal { DisplayName = "Or" };
+            Terminal lp = new Terminal { DisplayName = "Lp" };
+            Terminal rp = new Terminal { DisplayName = "Rp" };
+            Terminal symbol = new Terminal { DisplayName = "Symbol" };
 
-            LexicalAnalyzer lexicalAnalyzer = new LexicalAnalyzer
+            lexicalAnalyzer = new LexicalAnalyzer
             {
                 Specification = new List<Tuple<CompiledRegularExpression, Terminal, Action<Token>>>
                 {
-                    Tuple.Create<CompiledRegularExpression, Terminal, Action<Token>>(identifier.Compile(), id, null),
-                    Tuple.Create<CompiledRegularExpression, Terminal, Action<Token>>(whitespace.Compile(), null, null)
+                    Tuple.Create<CompiledRegularExpression, Terminal, Action<Token>>(zeroExpression.Compile(), zero, null),
+                    Tuple.Create<CompiledRegularExpression, Terminal, Action<Token>>(oneExpression.Compile(), one, null),
+                    Tuple.Create<CompiledRegularExpression, Terminal, Action<Token>>(definedExpression.Compile(), defined, null),
+                    Tuple.Create<CompiledRegularExpression, Terminal, Action<Token>>(bangExpression.Compile(), bang, null),
+                    Tuple.Create<CompiledRegularExpression, Terminal, Action<Token>>(andExpression.Compile(), and, null),
+                    Tuple.Create<CompiledRegularExpression, Terminal, Action<Token>>(orExpression.Compile(), or, null),
+                    Tuple.Create<CompiledRegularExpression, Terminal, Action<Token>>(lpExpression.Compile(), lp, null),
+                    Tuple.Create<CompiledRegularExpression, Terminal, Action<Token>>(rpExpression.Compile(), rp, null),
+                    Tuple.Create<CompiledRegularExpression, Terminal, Action<Token>>(symbolExpression.Compile(), symbol, null),
                 }
             };
-
-            foreach (var token in lexicalAnalyzer.Analyze("Hello World Compiler001 error"))
-            {
-                Console.WriteLine(token.SemanticValue);
-            }
-        }
-
-        private static void ExpressionGrammarSample()
-        {
             Grammar grammar = null;
 
             NonTerminal expr = new NonTerminal { DisplayName = "Expr" };
             NonTerminal term = new NonTerminal { DisplayName = "Term" };
-            NonTerminal factor = new NonTerminal { DisplayName = "Factor" };
-            Terminal intTerm = new Terminal { DisplayName = "int" };
-
-            Terminal lp = new Terminal { DisplayName = "(" };
-            Terminal rp = new Terminal { DisplayName = ")" };
-            Terminal add = new Terminal { DisplayName = "+" };
-            Terminal sub = new Terminal { DisplayName = "-" };
-            Terminal mul = new Terminal { DisplayName = "*" };
 
             Grammar exprGrammar = new Grammar
             {
                 Goal = expr,
                 Productions = new List<Production>
                     {
-                        new Production { From = expr, To = new List<Symbol> { expr, add, term }, SemanticAction = a => (int)a[0] + (int)a[2] },
-                        new Production { From = expr, To = new List<Symbol> { expr, sub, term }, SemanticAction = a => (int)a[0] - (int)a[2] },
-                        new Production { From = expr, To = new List<Symbol> { term }, SemanticAction = a => (int)a[0] },
-                        new Production { From = term, To = new List<Symbol> { term, mul, factor}, SemanticAction = a => (int)a[0] * (int)a[2] },
-                        new Production { From = term, To = new List<Symbol> { factor}, SemanticAction = a => (int)a[0] },
-                        new Production { From = factor, To = new List<Symbol> { lp, expr, rp }, SemanticAction = a => (int)a[1] },
-                        new Production { From = factor, To = new List<Symbol> { intTerm }, SemanticAction = a => (int)a[0] }
+                        new Production { From = expr, To = new List<Symbol> { term }, SemanticAction = (tokens) => tokens[0] },
+                        new Production { From = expr, To = new List<Symbol> { expr, or, term }, SemanticAction = (tokens) => new Or { Left = (Node)tokens[0], Right = (Node)tokens[2] } },
+                        new Production { From = expr, To = new List<Symbol> { expr, and, term }, SemanticAction = (tokens) => new And { Left = (Node)tokens[0], Right = (Node)tokens[2] } },
+                        new Production { From = term, To = new List<Symbol> { lp, expr, rp }, SemanticAction = (tokens) => tokens[1] },
+                        new Production { From = term, To = new List<Symbol> { zero }, SemanticAction = (tokens) => new Sym { Symbol = "0" } },
+                        new Production { From = term, To = new List<Symbol> { one }, SemanticAction = (tokens) => new Sym { Symbol = "1" } },
+                        new Production { From = term, To = new List<Symbol> { defined, lp, symbol, rp }, SemanticAction = (tokens) => new Sym { Symbol = (string)tokens[2] } },
+                        new Production { From = term, To = new List<Symbol> { bang, defined, lp, symbol, rp }, SemanticAction = (tokens) => new Not { Op = new Sym { Symbol = (string)tokens[3] } } },
+                        new Production { From = term, To = new List<Symbol> { symbol }, SemanticAction = (tokens) => new Sym { Symbol = (string)tokens[0] } },
                     }
             };
 
             grammar = exprGrammar;
 
-            Parser parser = new ParserGenerator(grammar, ParserMode.SLR).Generate();
-            object result = parser.Parse(new List<Token> { 
-                new Token { Symbol = intTerm, SemanticValue = 1 },
-                new Token { Symbol = add, SemanticValue = null },
-                new Token { Symbol = intTerm, SemanticValue = 2 },
-                new Token { Symbol = mul, SemanticValue = null },
-                new Token { Symbol = intTerm, SemanticValue = 3 },
-                new Token { Symbol = sub, SemanticValue = null },
-                new Token { Symbol = intTerm, SemanticValue = 4 },
-            });
-            Console.WriteLine(result);
+            parser = new ParserGenerator(grammar, ParserMode.SLR).Generate();
         }
-
-        private static void OperatorSample()
-        {
-            // Step 1: Create a grammar with associativity issue and try to solve it
-            Terminal num = new Terminal { DisplayName = "num" };
-            Terminal minus = new Terminal { DisplayName = "-" };
-            NonTerminal expr = new NonTerminal { DisplayName = "Expr" };
-            Grammar grammar = new Grammar
-            {
-                Goal = expr,
-                Productions = new List<Production>
-                {
-                    new Production { From = expr, To = new List<Symbol> { num }, SemanticAction = (args) => args[0] },
-                    new Production { From = expr, To = new List<Symbol> { expr, minus, expr }, SemanticAction = (args) => ((int)args[0]) - ((int)args[2]) } 
-                }
-            };
-            var parser = new ParserGenerator(grammar, ParserMode.LR, new OperatorConflictResolver { Left = { minus } }).Generate();
-            var answer = parser.Parse(new List<Token>
-            {
-                new Token { Symbol = num, SemanticValue = 7 },
-                new Token { Symbol = minus, SemanticValue = null },
-                new Token { Symbol = num, SemanticValue = 3 },
-                new Token { Symbol = minus, SemanticValue = null },
-                new Token { Symbol = num, SemanticValue = 2 },
-            });
-            Console.WriteLine(answer);
-        }
-
-        
     }
 }
