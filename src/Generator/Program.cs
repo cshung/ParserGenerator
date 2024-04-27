@@ -81,7 +81,7 @@ namespace Andrew.ParserGenerator
             Parser parser;
             CreateDefinesExpressionParser(out lexicalAnalyzer, out parser);
 
-            string[] lines = File.ReadAllLines(@"C:\dev\runtime\src\coreclr\gc\gc.cpp");
+            string[] lines = File.ReadAllLines(@"/Users/andrewau/git/runtime/src/coreclr/gc/gc.cpp");
             Stack<Node> define = new Stack<Node>();
             HashSet<string> preprocessors = new HashSet<string>();
             List<Tuple<string, string>> pairs = new List<Tuple<string, string>>();
